@@ -10,6 +10,7 @@ import {
   type DoFetch,
 } from "@tin/runtime";
 import sdkSource from "@tin/sdk/src/index.ts?raw";
+import designCss from "@tin/design/src/design-system.css?raw";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
@@ -86,7 +87,7 @@ async function loadPath(path: string) {
   if (!uiRow) throw new Error("Tin file has no ui rows");
 
   const driver = sqliteWasmDriver(db);
-  const sandboxHtml = buildSandboxHtml(uiRow.html as string, sdkSource, loadInitData(driver, true));
+  const sandboxHtml = buildSandboxHtml(uiRow.html as string, sdkSource, loadInitData(driver, true), designCss);
   frame.srcdoc = sandboxHtml;
   frame.style.display = "block";
 

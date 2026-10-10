@@ -37,3 +37,13 @@ test("escapes '<' in embedded data so a value can't break out of its <script>", 
   assert.ok(!html.includes("</script><script>alert"));
   assert.match(html, /\\u003c\/script>\\u003cscript>alert\(1\)\\u003c\/script>/);
 });
+
+test("inlines design CSS as a <style> before the init snapshot", () => {
+  const html = buildSandboxHtml("<h1>hi</h1>", "SDK;", emptyInit, ".btn { color: red; }");
+  assert.match(html, /<style>\.btn \{ color: red; \}<\/style>\s*<script>window\.__TIN_INIT__/);
+});
+
+test("design CSS defaults to empty when omitted", () => {
+  const html = buildSandboxHtml("<h1>hi</h1>", "SDK;", emptyInit);
+  assert.match(html, /<style><\/style>/);
+});
