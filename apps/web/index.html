@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>tin player</title>
+    <style>
+      html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; }
+      #toolbar { padding: 8px 12px; border-bottom: 1px solid #ddd; display: flex; gap: 12px; align-items: center; }
+      #status { color: #666; font-size: 14px; }
+      #app-frame { width: 100%; height: calc(100vh - 49px); border: 0; display: none; }
+    </style>
+  </head>
+  <body>
+    <div id="toolbar">
+      <input id="file-input" type="file" accept=".tin" />
+      <button id="download" disabled>Download .tin</button>
+      <span id="status">Open a .tin file to run it.</span>
+    </div>
+    <iframe id="app-frame" sandbox="allow-scripts"></iframe>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
