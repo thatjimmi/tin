@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Design system demo</title>
+    <style>
+      body { display: flex; justify-content: center; }
+      .wrap { width: 360px; }
+      .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+      .header h1 { font-size: 18px; margin: 0; }
+      .note-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .note-row span { overflow: hidden; text-overflow: ellipsis; }
+      .btn-small { padding: 2px 8px; font-size: 12px; }
+      .modal textarea { width: 100%; box-sizing: border-box; margin: 12px 0; font: inherit; }
+      .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="header">
+        <h1>Notes</h1>
+        <span id="count" class="badge">0</span>
+      </div>
+      <div class="card">
+        <ul id="list" class="list"></ul>
+        <button id="new-btn" class="btn" style="margin-top: 12px;">+ New note</button>
+      </div>
+    </div>
+
+    <div id="modal" class="modal" style="display: none;">
+      <div>
+        <h2 style="margin-top: 0;">New note</h2>
+        <textarea id="note-input" rows="4" autofocus></textarea>
+        <div class="modal-actions">
+          <button id="cancel-btn" class="btn" style="background: var(--border); color: var(--text);">Cancel</button>
+          <button id="save-btn" class="btn">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Demo app for the design system (packages/design): every class used
+      // here - .card, .btn, .badge, .list, .modal - comes free from the
+      // player, not from this file's own <style>.
+      var notes = tin.collection("notes");
+      var modal = document.getElementById("modal");
+      var input = document.getElementById("note-input");
+
+      async function render() {
+        var items = await notes.find({}, { sort: { _created_at: -1 } });
+        var list = document.getElementById("list");
+        list.innerHTML = "";
+        items.forEach(function (item) {
+          var li = document.createElement("li");
+          li.className = "note-row";
+          var span = document.createElement("span");
+          span.textContent = item.text;
+          var del = document.createElement("button");
+          del.className = "btn btn-small";
+          del.textContent = "Delete";
+          del.onclick = async function () {
+            await notes.delete({ _id: item._id });
+            render();
+          };
+          li.appendChild(span);
+          li.appendChild(del);
+          list.appendChild(li);
+        });
+        document.getElementById("count").textContent = String(items.length);
+      }
+
+      document.getElementById("new-btn").onclick = function () {
+        input.value = "";
+        modal.style.display = "flex";
+        input.focus();
+      };
+      document.getElementById("cancel-btn").onclick = function () {
+        modal.style.display = "none";
+      };
+      document.getElementById("save-btn").onclick = async function () {
+        if (!input.value.trim()) return;
+        await notes.insert({ text: input.value.trim() });
+        modal.style.display = "none";
+        render();
+      };
+
+      render();
+    </script>
+  </body>
+</html>
