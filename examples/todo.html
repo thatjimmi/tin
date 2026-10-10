@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Todo</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 24px; }
+      li { margin: 4px 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Todos</h1>
+    <form id="add-form">
+      <input id="add-input" placeholder="New todo" autofocus />
+      <button type="submit">Add</button>
+    </form>
+    <ul id="list"></ul>
+
+    <script>
+      var todos = tin.collection("todos");
+
+      async function render() {
+        var items = await todos.find({}, { sort: { _created_at: 1 } });
+        var list = document.getElementById("list");
+        list.innerHTML = "";
+        items.forEach(function (item) {
+          var li = document.createElement("li");
+          var checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = item.done;
+          checkbox.onchange = async function () {
+            await todos.update({ _id: item._id }, { done: checkbox.checked });
+            render();
+          };
+          var label = document.createElement("span");
+          label.textContent = " " + item.title;
+          li.appendChild(checkbox);
+          li.appendChild(label);
+          list.appendChild(li);
+        });
+      }
+
+      document.getElementById("add-form").onsubmit = async function (e) {
+        e.preventDefault();
+        var input = document.getElementById("add-input");
+        if (!input.value.trim()) return;
+        await todos.insert({ title: input.value.trim(), done: false });
+        input.value = "";
+        render();
+      };
+
+      render();
+    </script>
+  </body>
+</html>
