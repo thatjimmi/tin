@@ -2,6 +2,7 @@ import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import type { Sqlite3Static, Database } from "@sqlite.org/sqlite-wasm";
 import { buildSandboxHtml, createBridge, createDocStore, loadInitData } from "@tin/runtime";
 import sdkSource from "@tin/sdk/src/index.ts?raw";
+import designCss from "@tin/design/src/design-system.css?raw";
 import { sqliteWasmDriver } from "./driver.ts";
 
 const fileInput = document.querySelector<HTMLInputElement>("#file-input")!;
@@ -41,7 +42,7 @@ async function loadFile(file: File) {
   if (!uiRow) throw new Error("Tin file has no ui rows");
 
   const driver = sqliteWasmDriver(db);
-  const sandboxHtml = buildSandboxHtml(uiRow.html as string, sdkSource, loadInitData(driver));
+  const sandboxHtml = buildSandboxHtml(uiRow.html as string, sdkSource, loadInitData(driver), designCss);
   frame.srcdoc = sandboxHtml;
   frame.style.display = "block";
 
