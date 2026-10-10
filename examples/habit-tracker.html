@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Habit tracker</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 24px; }
+      li { margin: 4px 0; }
+      #streak { color: #666; }
+    </style>
+  </head>
+  <body>
+    <h1>Habits</h1>
+    <p id="streak"></p>
+    <form id="add-form">
+      <input id="add-input" placeholder="New habit" autofocus />
+      <button type="submit">Add</button>
+    </form>
+    <ul id="list"></ul>
+
+    <script>
+      var habits = tin.collection("habits");
+      var today = new Date().toISOString().slice(0, 10);
+
+      // localStorage demo: visit streak survives reloads of this .tin file
+      // (it's backed by the kv table, not the browser's real localStorage -
+      // every sandbox reload gets a fresh opaque origin, see @tin/runtime).
+      function bumpStreak() {
+        var lastVisit = localStorage.getItem("lastVisit");
+        var streak = Number(localStorage.getItem("streak") || "0");
+        if (lastVisit !== today) {
+          streak += 1;
+          localStorage.setItem("streak", String(streak));
+          localStorage.setItem("lastVisit", today);
+        }
+        document.getElementById("streak").textContent = "Visit streak: " + streak + " day(s)";
+      }
+
+      async function render() {
+        var items = await habits.find({}, { sort: { _created_at: 1 } });
+        var list = document.getElementById("list");
+        list.innerHTML = "";
+        items.forEach(function (item) {
+          var doneToday = item.lastDone === today;
+          var li = document.createElement("li");
+          var checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = doneToday;
+          checkbox.onchange = async function () {
+            await habits.update({ _id: item._id }, { lastDone: checkbox.checked ? today : null });
+            render();
+          };
+          var label = document.createElement("span");
+          label.textContent = " " + item.title;
+          li.appendChild(checkbox);
+          li.appendChild(label);
+          list.appendChild(li);
+        });
+      }
+
+      document.getElementById("add-form").onsubmit = async function (e) {
+        e.preventDefault();
+        var input = document.getElementById("add-input");
+        if (!input.value.trim()) return;
+        await habits.insert({ title: input.value.trim(), lastDone: null });
+        input.value = "";
+        render();
+      };
+
+      bumpStreak();
+      render();
+    </script>
+  </body>
+</html>

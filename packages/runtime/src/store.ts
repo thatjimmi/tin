@@ -6,6 +6,7 @@
 
 import { compileFilter, compileFind, compileUpdate, type Filter, type FindOptions } from "@tin/query";
 import type { RpcHandlers } from "./bridge.ts";
+import { bytesToDataUrl, type AssetMeta } from "./init.ts";
 
 export interface SqliteDriver {
   all(sql: string, params: unknown[]): Record<string, unknown>[];
@@ -14,6 +15,16 @@ export interface SqliteDriver {
 
 function rowToDoc(row: Record<string, unknown>): Record<string, unknown> {
   return { _id: row._id, ...JSON.parse(row.data as string) };
+}
+
+function assetMeta(
+  id: string,
+  belongsTo: string,
+  name: string | null,
+  mime: string | null,
+  bytes: Uint8Array,
+): AssetMeta {
+  return { id, belongsTo, name, mime, size: bytes.length, url: bytesToDataUrl(mime, bytes) };
 }
 
 export function createDocStore(driver: SqliteDriver): RpcHandlers {
@@ -81,6 +92,49 @@ export function createDocStore(driver: SqliteDriver): RpcHandlers {
         "INSERT INTO meta (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
         [key, value],
       );
+      return null;
+    },
+
+    // localStorage shim writes: the SDK reads synchronously from the init
+    // snapshot (see init.ts) and only sends these to persist in the
+    // background. See PLAN.md's "localStorage-trick" note.
+    "kv.set"(key: string, value: string) {
+      driver.run(
+        "INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        [key, value],
+      );
+      return null;
+    },
+
+    "kv.delete"(key: string) {
+      driver.run("DELETE FROM kv WHERE key = ?", [key]);
+      return null;
+    },
+
+    "kv.clear"() {
+      driver.run("DELETE FROM kv", []);
+      return null;
+    },
+
+    "assets.add"(belongsTo: string, bytes: Uint8Array, name: string | null, mime: string | null) {
+      const id = crypto.randomUUID();
+      driver.run("INSERT INTO assets (id, belongs_to, name, mime, bytes) VALUES (?, ?, ?, ?, ?)", [
+        id,
+        belongsTo,
+        name,
+        mime,
+        bytes,
+      ]);
+      return assetMeta(id, belongsTo, name, mime, bytes);
+    },
+
+    "assets.delete"(id: string) {
+      driver.run("DELETE FROM assets WHERE id = ?", [id]);
+      return null;
+    },
+
+    "assets.deleteAll"(belongsTo: string) {
+      driver.run("DELETE FROM assets WHERE belongs_to = ?", [belongsTo]);
       return null;
     },
   };

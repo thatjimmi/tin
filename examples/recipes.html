@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Recipes</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 24px; }
+      .card { display: inline-block; width: 160px; margin: 0 12px 12px 0; vertical-align: top; }
+      .card img { width: 160px; height: 120px; object-fit: cover; background: #eee; display: block; }
+      .card .name { font-weight: 600; margin-top: 4px; }
+    </style>
+  </head>
+  <body>
+    <h1>Recipes</h1>
+    <form id="add-form">
+      <input id="add-name" placeholder="Recipe name" autofocus />
+      <input id="add-photo" type="file" accept="image/*" />
+      <button type="submit">Add</button>
+    </form>
+    <div id="list"></div>
+
+    <script>
+      var recipes = tin.collection("recipes");
+
+      function fileToBytes(file) {
+        return file.arrayBuffer().then(function (buf) {
+          return new Uint8Array(buf);
+        });
+      }
+
+      async function render() {
+        var items = await recipes.find({}, { sort: { _created_at: 1 } });
+        var list = document.getElementById("list");
+        list.innerHTML = "";
+        items.forEach(function (item) {
+          var card = document.createElement("div");
+          card.className = "card";
+
+          var img = document.createElement("img");
+          if (item.photoId) img.src = tin.assets.getUrl(item.photoId);
+          card.appendChild(img);
+
+          var name = document.createElement("div");
+          name.className = "name";
+          name.textContent = item.name;
+          card.appendChild(name);
+
+          list.appendChild(card);
+        });
+      }
+
+      document.getElementById("add-form").onsubmit = async function (e) {
+        e.preventDefault();
+        var nameInput = document.getElementById("add-name");
+        var photoInput = document.getElementById("add-photo");
+        if (!nameInput.value.trim()) return;
+
+        var recipe = await recipes.insert({ name: nameInput.value.trim(), photoId: null });
+
+        var file = photoInput.files[0];
+        if (file) {
+          var bytes = await fileToBytes(file);
+          var asset = await tin.assets.add(recipe._id, bytes, file.name, file.type);
+          await recipes.update({ _id: recipe._id }, { photoId: asset.id });
+        }
+
+        nameInput.value = "";
+        photoInput.value = "";
+        render();
+      };
+
+      render();
+    </script>
+  </body>
+</html>
