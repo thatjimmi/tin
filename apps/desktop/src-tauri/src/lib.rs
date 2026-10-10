@@ -8,10 +8,14 @@
 // `permissions` table, asked about in apps/desktop/src/main.ts. Native
 // SQLite (rusqlite) is a later milestone (M4.5); for now this window runs
 // the same sqlite-wasm-in-memory engine as the web player.
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::time::Duration;
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 
 static WINDOW_COUNTER: AtomicU32 = AtomicU32::new(0);
+// Set as soon as any document is opened (via argv or a macOS Opened event),
+// so the deferred blank-window fallback below knows one is already handled.
+static OPENED_FILE: AtomicBool = AtomicBool::new(false);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,11 +27,33 @@ pub fn run() {
             // Launched directly with a file path: double-click on
             // Windows/Linux, or `tin-desktop path/to/app.tin` from a shell.
             // macOS instead delivers file-association launches as a
-            // RunEvent::Opened, handled below.
+            // RunEvent::Opened, handled below - and it can arrive a beat
+            // after setup() runs, not before. That used to race against a
+            // "main" window declared statically in tauri.conf.json (always
+            // created at startup): the doc window would open, but the
+            // blank main window was already on screen and didn't always
+            // close in time, leaving two windows up. Fixed by not creating
+            // main from static config at all - it's only ever built here,
+            // in code, after we've had a chance to find out a document is
+            // on the way.
             if let Some(path) = std::env::args().skip(1).find(|a| a.ends_with(".tin")) {
+                OPENED_FILE.store(true, Ordering::SeqCst);
                 open_document_window(app.handle(), &path);
-                close_empty_main(app.handle());
+                return Ok(());
             }
+
+            // ponytail: a fixed 200ms grace period, not a real
+            // synchronization with the Opened event - if macOS is ever
+            // slower than that to deliver it, main briefly flashes before
+            // close_empty_main cleans it up (same as before, just rarer).
+            // Swap for a proper signal if that's ever observed in practice.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(Duration::from_millis(200));
+                if !OPENED_FILE.load(Ordering::SeqCst) {
+                    open_main_window(&handle);
+                }
+            });
             Ok(())
         })
         .build(tauri::generate_context!())
@@ -36,6 +62,7 @@ pub fn run() {
             // macOS file-association open, at launch or while already
             // running, arrives here instead of via argv.
             if let RunEvent::Opened { urls } = event {
+                OPENED_FILE.store(true, Ordering::SeqCst);
                 for url in urls {
                     if let Ok(path) = url.to_file_path() {
                         open_document_window(app_handle, &path.display().to_string());
@@ -65,9 +92,19 @@ fn open_document_window(app: &tauri::AppHandle, path: &str) {
         .expect("failed to open document window");
 }
 
-// The default "main" window (declared in tauri.conf.json) is only useful
-// as an empty "Open a .tin file" screen for a bare launch. If this launch
-// came with a document to open instead, that blank window is just clutter.
+// The empty "Open a .tin file" screen for a bare launch - built here
+// instead of from tauri.conf.json's static windows config, so it only
+// exists when nothing else has claimed the launch (see setup() above).
+fn open_main_window(app: &tauri::AppHandle) {
+    WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+        .title("tin")
+        .inner_size(960.0, 720.0)
+        .build()
+        .expect("failed to open main window");
+}
+
+// Covers the case where main already exists (the grace period elapsed, or
+// the app was already running bare) and a document now needs the screen.
 fn close_empty_main(app: &tauri::AppHandle) {
     if let Some(main) = app.get_webview_window("main") {
         let _ = main.close();
