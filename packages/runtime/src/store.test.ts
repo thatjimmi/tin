@@ -65,3 +65,50 @@ test("meta get/set round trip, including overwrite", () => {
   store["meta.set"]("title", "Renamed");
   assert.equal(store["meta.get"]("title"), "Renamed");
 });
+
+test("kv set/delete/clear persist to the kv table", () => {
+  const { db, store } = seededStore();
+  store["kv.set"]("a", "1");
+  store["kv.set"]("b", "2");
+  assert.deepEqual(db.prepare("SELECT key, value FROM kv ORDER BY key").all().map((r) => ({ ...r })), [
+    { key: "a", value: "1" },
+    { key: "b", value: "2" },
+  ]);
+
+  store["kv.delete"]("a");
+  assert.deepEqual(db.prepare("SELECT key FROM kv").all().map((r) => ({ ...r })), [{ key: "b" }]);
+
+  store["kv.clear"]();
+  assert.deepEqual(db.prepare("SELECT key FROM kv").all(), []);
+});
+
+test("assets add/delete/deleteAll round trip through the assets table", () => {
+  const { db, store } = seededStore();
+  const bytes = new Uint8Array([1, 2, 3]);
+  const meta = store["assets.add"]("recipe-1", bytes, "photo.jpg", "image/jpeg") as any;
+
+  assert.ok(meta.id);
+  assert.equal(meta.belongsTo, "recipe-1");
+  assert.equal(meta.name, "photo.jpg");
+  assert.equal(meta.mime, "image/jpeg");
+  assert.equal(meta.size, 3);
+  assert.equal(meta.url, "data:image/jpeg;base64,AQID");
+
+  const row = db.prepare("SELECT belongs_to, name, mime, bytes FROM assets WHERE id = ?").get(meta.id) as any;
+  assert.equal(row.belongs_to, "recipe-1");
+  assert.deepEqual(new Uint8Array(row.bytes), bytes);
+
+  const second = store["assets.add"]("recipe-1", new Uint8Array([9]), "x.png", "image/png") as any;
+  store["assets.delete"](second.id);
+  assert.equal(db.prepare("SELECT COUNT(*) as n FROM assets").get()!.n, 1);
+
+  store["assets.add"]("recipe-2", new Uint8Array([9]), "x.png", "image/png");
+  store["assets.deleteAll"]("recipe-1");
+  assert.equal(db.prepare("SELECT COUNT(*) as n FROM assets").get()!.n, 1);
+
+  const remaining = db.prepare("SELECT belongs_to FROM assets").get() as any;
+  assert.equal(remaining.belongs_to, "recipe-2");
+
+  store["assets.deleteAll"]("recipe-2");
+  assert.equal(db.prepare("SELECT COUNT(*) as n FROM assets").get()!.n, 0);
+});

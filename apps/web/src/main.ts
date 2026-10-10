@@ -1,6 +1,6 @@
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import type { Sqlite3Static, Database } from "@sqlite.org/sqlite-wasm";
-import { buildSandboxHtml, createBridge, createDocStore } from "@tin/runtime";
+import { buildSandboxHtml, createBridge, createDocStore, loadInitData } from "@tin/runtime";
 import sdkSource from "@tin/sdk/src/index.ts?raw";
 import { sqliteWasmDriver } from "./driver.ts";
 
@@ -40,11 +40,12 @@ async function loadFile(file: File) {
   const [uiRow] = db.selectObjects("SELECT html FROM ui ORDER BY version DESC LIMIT 1");
   if (!uiRow) throw new Error("Tin file has no ui rows");
 
-  const sandboxHtml = buildSandboxHtml(uiRow.html as string, sdkSource);
+  const driver = sqliteWasmDriver(db);
+  const sandboxHtml = buildSandboxHtml(uiRow.html as string, sdkSource, loadInitData(driver));
   frame.srcdoc = sandboxHtml;
   frame.style.display = "block";
 
-  const store = createDocStore(sqliteWasmDriver(db));
+  const store = createDocStore(driver);
   disposeBridge = createBridge(frame, store);
 
   downloadButton.disabled = false;
