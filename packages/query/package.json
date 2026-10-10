@@ -1,0 +1,13 @@
+{
+  "name": "@tin/query",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "node --test src/*.test.ts"
+  },
+  "devDependencies": {
+    "@tin/format": "*"
+  }
+}
