@@ -1,9 +1,18 @@
 import sqlite3InitModule from "@sqlite.org/sqlite-wasm";
 import type { Sqlite3Static, Database } from "@sqlite.org/sqlite-wasm";
-import { buildSandboxHtml, createBridge, createDocStore, loadInitData } from "@tin/runtime";
+import {
+  buildSandboxHtml,
+  createBridge,
+  createDocStore,
+  createHttpHandlers,
+  createPermissionGate,
+  loadInitData,
+  type DoFetch,
+} from "@tin/runtime";
 import sdkSource from "@tin/sdk/src/index.ts?raw";
 import { readFile, writeFile } from "@tauri-apps/plugin-fs";
 import { open as openDialog, save as saveDialog } from "@tauri-apps/plugin-dialog";
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { sqliteWasmDriver } from "./driver.ts";
 
 declare global {
@@ -43,6 +52,27 @@ function openDb(bytes: Uint8Array): Database {
   return d;
 }
 
+// Runs the fetch in Rust (not subject to the webview's CORS checks - see
+// capabilities/default.json's broad http:default scope, and lib.rs's
+// module comment on why that's safe: the real gate is checkPermission
+// below, asking per host and remembering the answer in this file's own
+// `permissions` table).
+const doFetch: DoFetch = async (url, init) => {
+  const res = await tauriFetch(url, init);
+  const headers: Record<string, string> = {};
+  res.headers.forEach((value, key) => {
+    headers[key] = value;
+  });
+  return { status: res.status, headers, body: await res.text() };
+};
+
+// Native confirm() for v1 - good enough to satisfy "only after the user's
+// consent" (PLAN.md). Swap for a proper modal if a real app needs more
+// than a yes/no prompt.
+function askPermission(_name: string, reason: string): boolean {
+  return window.confirm(`${currentPath ?? "This app"} wants to:\n${reason}\n\nAllow?`);
+}
+
 async function loadPath(path: string) {
   sqlite3 ??= await sqlite3InitModule();
 
@@ -56,12 +86,13 @@ async function loadPath(path: string) {
   if (!uiRow) throw new Error("Tin file has no ui rows");
 
   const driver = sqliteWasmDriver(db);
-  const sandboxHtml = buildSandboxHtml(uiRow.html as string, sdkSource, loadInitData(driver));
+  const sandboxHtml = buildSandboxHtml(uiRow.html as string, sdkSource, loadInitData(driver, true));
   frame.srcdoc = sandboxHtml;
   frame.style.display = "block";
 
   const store = createDocStore(driver);
-  disposeBridge = createBridge(frame, store);
+  const http = createHttpHandlers(createPermissionGate(driver, askPermission), doFetch);
+  disposeBridge = createBridge(frame, { ...store, ...http });
 
   currentPath = path;
   saveButton.disabled = false;
