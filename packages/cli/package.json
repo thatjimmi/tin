@@ -1,0 +1,12 @@
+{
+  "name": "@tin/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "tin": "src/index.ts"
+  },
+  "dependencies": {
+    "@tin/format": "*"
+  }
+}

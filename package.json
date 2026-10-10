@@ -1,0 +1,12 @@
+{
+  "name": "tin",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=22.5.0"
+  }
+}
