@@ -2,10 +2,12 @@
 // SDK) is the same TypeScript that runs in apps/web, loaded into this
 // window's webview unchanged - see PLAN.md's "one runtime, two shells".
 // Rust's only job here is what a browser can't do: read/write the .tin
-// file on disk, register it as a file association, and open one window
-// per document. Native SQLite (rusqlite) is a later milestone (M4.5); for
-// now this window runs the same sqlite-wasm-in-memory engine as the web
-// player.
+// file on disk, register it as a file association, open one window per
+// document, and (M5) run outgoing HTTP requests so apps can reach real
+// APIs without hitting the browser's CORS wall - gated by the file's own
+// `permissions` table, asked about in apps/desktop/src/main.ts. Native
+// SQLite (rusqlite) is a later milestone (M4.5); for now this window runs
+// the same sqlite-wasm-in-memory engine as the web player.
 use std::sync::atomic::{AtomicU32, Ordering};
 use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
 
@@ -16,6 +18,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_http::init())
         .setup(|app| {
             // Launched directly with a file path: double-click on
             // Windows/Linux, or `tin-desktop path/to/app.tin` from a shell.

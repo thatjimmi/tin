@@ -19,6 +19,11 @@ export interface AssetMeta {
 export interface InitData {
   kv: Record<string, string>;
   assets: AssetMeta[];
+  // Only true on desktop (see PLAN.md: the proxy is Rust-backed and can't
+  // exist in the web player). The SDK uses this to decide whether
+  // window.tin.http exists at all, rather than defining it everywhere and
+  // failing at call time on web.
+  hasNetworkProxy: boolean;
 }
 
 export function bytesToDataUrl(mime: string | null, bytes: Uint8Array): string {
@@ -30,7 +35,7 @@ export function bytesToDataUrl(mime: string | null, bytes: Uint8Array): string {
   return `data:${mime || "application/octet-stream"};base64,${btoa(binary)}`;
 }
 
-export function loadInitData(driver: SqliteDriver): InitData {
+export function loadInitData(driver: SqliteDriver, hasNetworkProxy = false): InitData {
   const kv: Record<string, string> = {};
   for (const row of driver.all("SELECT key, value FROM kv", [])) {
     kv[row.key as string] = row.value as string;
@@ -51,5 +56,5 @@ export function loadInitData(driver: SqliteDriver): InitData {
     },
   );
 
-  return { kv, assets };
+  return { kv, assets, hasNetworkProxy };
 }

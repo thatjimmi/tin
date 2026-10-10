@@ -147,6 +147,31 @@
     },
   };
 
+  // --- http ----------------------------------------------------------
+  // Desktop only (see PLAN.md): the actual request runs in Rust, outside
+  // the browser's CORS checks, after the user is asked to allow the
+  // target host. On web there's no proxy to ask, so this stays undefined
+  // rather than existing and always rejecting.
+  var http = (window.__TIN_INIT__ && window.__TIN_INIT__.hasNetworkProxy)
+    ? {
+        fetch: function (url, init) {
+          return rpc("http.fetch", [url, init || {}]).then(function (res) {
+            return {
+              status: res.status,
+              ok: res.status >= 200 && res.status < 300,
+              headers: res.headers,
+              text: function () {
+                return Promise.resolve(res.body);
+              },
+              json: function () {
+                return Promise.resolve(JSON.parse(res.body));
+              },
+            };
+          });
+        },
+      }
+    : undefined;
+
   window.tin = {
     collection: collection,
     assets: assets,
@@ -158,5 +183,6 @@
         return rpc("meta.set", [key, value]);
       },
     },
+    http: http,
   };
 })();
